@@ -1,5 +1,3 @@
-#!/usr/bin/python
-
 import cv2
 import sys
 import numpy as np
@@ -15,15 +13,14 @@ PatchSize = 30
 OverlapWidth = 30
 InitialThresConstant = 78
 
-#Picking random patch to begin
+
 randomPatchHeight = randint(0, sample_height - PatchSize)
 randomPatchWidth = randint(0, sample_width - PatchSize)
 for i in range(PatchSize):
     for j in range(PatchSize):
         img[i, j] = img_sample[randomPatchHeight + i, randomPatchWidth + j]
-#initializating next
+        
 GrowPatchLocation = (0,PatchSize)
-#    Best Fit Patch and related functions
 def OverlapErrorVertical( imgPx, samplePx ):
     iLeft,jLeft = imgPx
     iRight,jRight = samplePx
@@ -50,7 +47,7 @@ def OverlapErrorHorizntl( leftPx, rightPx ):
             OverlapErr += (diff[0]**2 + diff[1]**2 + diff[2]**2)**0.5
     return OverlapErr
 
-def GetBestPatches( px ):#Will get called in GrowImage
+def GetBestPatches( px ):
     PixelList = []
     #check for top layer
     if px[0] == 0:
@@ -70,7 +67,7 @@ def GetBestPatches( px ):#Will get called in GrowImage
                     PixelList.append((i,j))
                 elif error < ThresholdOverlapError/2:
                     return [(i,j)]
-    #for pixel placed inside
+    
     else:
         for i in range(OverlapWidth, sample_height - PatchSize):
             for j in range(OverlapWidth, sample_width - PatchSize):
@@ -82,19 +79,12 @@ def GetBestPatches( px ):#Will get called in GrowImage
                     return [(i,j)]
     return PixelList
 
-#-----------------------------------------------------------------------------------------------#
-#|                              Quilting and related Functions                                 |#
-#-----------------------------------------------------------------------------------------------#
-
 def SSD_Error( offset, imgPx, samplePx ):
     err_r = int(img[imgPx[0] + offset[0], imgPx[1] + offset[1]][0]) -int(img_sample[samplePx[0] + offset[0], samplePx[1] + offset[1]][0])
     err_g = int(img[imgPx[0] + offset[0], imgPx[1] + offset[1]][1]) - int(img_sample[samplePx[0] + offset[0], samplePx[1] + offset[1]][1])
     err_b = int(img[imgPx[0] + offset[0], imgPx[1] + offset[1]][2]) - int(img_sample[samplePx[0] + offset[0], samplePx[1] + offset[1]][2])
     return (err_r**2 + err_g**2 + err_b**2)/3.0
 
-#---------------------------------------------------------------#
-#|                  Calculating Cost                           |#
-#---------------------------------------------------------------#
 
 def GetCostVertical(imgPx, samplePx):
     Cost = np.zeros((PatchSize, OverlapWidth))
@@ -124,8 +114,6 @@ def GetCostHorizntl(imgPx, samplePx):
             else:
                 Cost[i,j] = SSD_Error((i - OverlapWidth, j), imgPx, samplePx) + min(SSD_Error((i - OverlapWidth, j + 1), imgPx, samplePx), SSD_Error((i + 1 - OverlapWidth, j + 1), imgPx, samplePx), SSD_Error((i - 1 - OverlapWidth, j + 1), imgPx, samplePx))
     return Cost
-
-#|                  Finding Minimum Cost Path                  |#
 
 def FindMinCostPathVertical(Cost):
     Boundary = np.zeros((PatchSize),np.int)
@@ -169,10 +157,6 @@ def FindMinCostPathHorizntl(Cost):
         Boundary[j - 1] = ParentMatrix[Boundary[j],j]
     return Boundary
 
-#---------------------------------------------------------------#
-#|                      Quilting                               |#
-#---------------------------------------------------------------#
-
 def QuiltVertical(Boundary, imgPx, samplePx):
     for i in range(PatchSize):
         for j in range(Boundary[i], 0, -1):
@@ -183,21 +167,14 @@ def QuiltHorizntl(Boundary, imgPx, samplePx):
             img[imgPx[0] - i, imgPx[1] + j] = img_sample[samplePx[0] - i, samplePx[1] + j]
 
 def QuiltPatches( imgPx, samplePx ):
-    #check for top layer
     if imgPx[0] == 0:
         Cost = GetCostVertical(imgPx, samplePx)
-        # Getting boundary to stitch
         Boundary = FindMinCostPathVertical(Cost)
-        #Quilting Patches
         QuiltVertical(Boundary, imgPx, samplePx)
-    #check for leftmost layer
     elif imgPx[1] == 0:
         Cost = GetCostHorizntl(imgPx, samplePx)
-        #Boundary to stitch
         Boundary = FindMinCostPathHorizntl(Cost)
-        #Quilting Patches
         QuiltHorizntl(Boundary, imgPx, samplePx)
-    #for pixel placed inside
     else:
         CostVertical = GetCostVertical(imgPx, samplePx)
         CostHorizntl = GetCostHorizntl(imgPx, samplePx)
@@ -206,9 +183,6 @@ def QuiltPatches( imgPx, samplePx ):
         QuiltVertical(BoundaryVertical, imgPx, samplePx)
         QuiltHorizntl(BoundaryHorizntl, imgPx, samplePx)
 
-#--------------------------------------------------------------------------------------------------------#
-#                                   Growing Image Patch-by-patch                                        |#
-#--------------------------------------------------------------------------------------------------------#
 
 def FillImage( imgPx, samplePx ):
     for i in range(PatchSize):
@@ -226,28 +200,21 @@ while GrowPatchLocation[0] + PatchSize < img_height:
     progress = 0
     while progress == 0:
         ThresholdOverlapError = ThresholdConstant * PatchSize * OverlapWidth
-        #Get Best matches for current pixel
         List = GetBestPatches(GrowPatchLocation)
         if len(List) > 0:
             progress = 1
-            #Make A random selection from best fit pxls
             sampleMatch = List[ randint(0, len(List) - 1) ]
             FillImage( GrowPatchLocation, sampleMatch )
-            #Quilt this with in curr location
             QuiltPatches( GrowPatchLocation, sampleMatch )
-            #upadate cur pixel location
             GrowPatchLocation = (GrowPatchLocation[0], GrowPatchLocation[1] + PatchSize)
             if GrowPatchLocation[1] + PatchSize > img_width:
                 GrowPatchLocation = (GrowPatchLocation[0] + PatchSize, 0)
-        #if not progressed, increse threshold
         else:
             ThresholdConstant *= 1.1
-    # print pixelsCompleted, ThresholdConstant
     sys.stdout.write('\r')
     sys.stdout.write("Progress : [%-20s] %d%% | PixelsCompleted: %d | ThresholdConstant: %f" % ('='*(pixelsCompleted*20/TotalPatches), (100*pixelsCompleted)/TotalPatches, pixelsCompleted, ThresholdConstant))
     sys.stdout.flush()
 
-# Displaying Images
 cv2.imshow('Sample Texture',img_sample)
 cv2.imshow('Generated Image',img)
 cv2.imwrite('o2.jpg',img)
