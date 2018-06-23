@@ -49,7 +49,6 @@ def OverlapErrorHorizntl( leftPx, rightPx ):
 
 def GetBestPatches( px ):
     PixelList = []
-    #check for top layer
     if px[0] == 0:
         for i in range(sample_height - PatchSize):
             for j in range(OverlapWidth, sample_width - PatchSize ):
